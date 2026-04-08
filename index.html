@@ -872,9 +872,19 @@
         currentRoom.participants = snap.val() || {};
         renderParticipants();
         updateProgress();
-        checkAllRolled();
+        checkAllJoined();
+        checkAllRevealed();
       });
       listeners.push(partRef);
+
+      // PreRolls (pre-assigned unique numbers)
+      const preRollsRef = roomRef.child('preRolls');
+      preRollsRef.on('value', (snap) => {
+        currentRoom = currentRoom || {};
+        currentRoom.preRolls = snap.val() || null;
+        updateProgress();
+      });
+      listeners.push(preRollsRef);
 
       // Assignments
       const assignRef = roomRef.child('assignments');
@@ -939,18 +949,19 @@
       const maxPlayers = currentRoom?.meta?.maxPlayers || 5;
       const entries = Object.values(participants);
       const joined = entries.length;
-      const rolled = entries.filter(p => typeof p.roll === 'number').length;
+      const revealed = entries.filter(p => typeof p.roll === 'number').length;
 
       document.getElementById('progress-text').textContent = `${joined} / ${maxPlayers} 人已加入`;
       document.getElementById('progress-fill').style.width = `${(joined / maxPlayers) * 100}%`;
 
-      document.getElementById('roll-progress-text').textContent = `${rolled} / ${joined} 人已掷`;
-      document.getElementById('roll-progress-fill').style.width = joined > 0 ? `${(rolled / joined) * 100}%` : '0%';
+      document.getElementById('roll-progress-text').textContent = `${revealed} / ${joined} 人已掷`;
+      document.getElementById('roll-progress-fill').style.width = joined > 0 ? `${(revealed / joined) * 100}%` : '0%';
 
       // Update roll button state
       const btn = document.getElementById('btn-roll');
       const msg = document.getElementById('roll-message');
       const meInRoom = participants[playerId];
+      const hasPreRolls = !!currentRoom?.preRolls;
 
       if (!meInRoom) {
         btn.disabled = true;
@@ -958,6 +969,9 @@
       } else if (myRoll !== null) {
         btn.disabled = true;
         msg.textContent = `你掷出了 ${myRoll} 点`;
+      } else if (!hasPreRolls) {
+        btn.disabled = true;
+        msg.textContent = '等待所有人加入...';
       } else if (isRolling) {
         btn.disabled = true;
       } else {
@@ -969,18 +983,19 @@
     // ==================== DICE ROLLING ====================
     function rollDice() {
       if (isRolling || myRoll !== null) return;
+      if (!currentRoom?.preRolls?.[playerId]) return;
       isRolling = true;
 
       const btn = document.getElementById('btn-roll');
       btn.disabled = true;
 
-      // Generate result: 1-6
-      const result = Math.floor(Math.random() * 6) + 1;
+      // Use pre-assigned number (guaranteed unique)
+      const result = currentRoom.preRolls[playerId];
       myRoll = result;
 
-      // Start animation
+      // Start animation - dice lands on pre-assigned number
       animateDice(result, () => {
-        // Write to Firebase
+        // Write to Firebase to mark as revealed
         const playerRef = db.ref(`rooms/${currentRoomId}/participants/${playerId}`);
         playerRef.update({
           roll: result,
@@ -988,7 +1003,6 @@
         }).then(() => {
           isRolling = false;
           document.getElementById('roll-message').textContent = `你掷出了 ${result} 点！`;
-          // dice landed
         }).catch(() => {
           isRolling = false;
           showToast('网络错误，请重试');
@@ -1030,37 +1044,56 @@
       setTimeout(callback, 1800);
     }
 
-    // ==================== CHECK ALL ROLLED ====================
-    function checkAllRolled() {
+    // ==================== CHECK ALL JOINED → PRE-ASSIGN ====================
+    function checkAllJoined() {
       if (!currentRoom?.participants || !currentRoom?.meta) return;
-      const participants = Object.entries(currentRoom.participants);
-      const maxPlayers = currentRoom.meta.maxPlayers || 5;
-      const allJoined = participants.length >= maxPlayers;
-      const allRolled = allJoined && participants.every(([, p]) => typeof p.roll === 'number');
+      if (currentRoom.preRolls) return; // already pre-assigned
 
-      if (allRolled && !currentRoom.assignments) {
-        // Compute and write assignments
+      const participants = Object.keys(currentRoom.participants);
+      const maxPlayers = currentRoom.meta.maxPlayers || 5;
+
+      if (participants.length >= maxPlayers) {
+        // All joined! Generate unique numbers via Fisher-Yates shuffle
+        const numbers = Array.from({length: participants.length}, (_, i) => i + 1);
+        for (let i = numbers.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
+        }
+        const preRolls = {};
+        participants.forEach((pid, idx) => { preRolls[pid] = numbers[idx]; });
+
+        // Write once
+        db.ref(`rooms/${currentRoomId}/preRolls`).transaction((current) => {
+          if (current === null) return preRolls;
+          return;
+        });
+
+        db.ref(`rooms/${currentRoomId}/meta/status`).set('rolling');
+      }
+    }
+
+    // ==================== CHECK ALL REVEALED ====================
+    function checkAllRevealed() {
+      if (!currentRoom?.participants || !currentRoom?.meta || !currentRoom?.preRolls) return;
+      const participants = Object.entries(currentRoom.participants);
+      const allRevealed = participants.length > 0 && participants.every(([, p]) => typeof p.roll === 'number');
+
+      if (allRevealed && !currentRoom.assignments) {
         computeAndWriteAssignments();
       }
 
-      // Update status
-      if (allRolled && currentRoom.meta.status !== 'done') {
+      if (allRevealed && currentRoom.meta.status !== 'done') {
         db.ref(`rooms/${currentRoomId}/meta/status`).set('done');
-      } else if (participants.some(([, p]) => typeof p.roll === 'number') && currentRoom.meta.status === 'waiting') {
-        db.ref(`rooms/${currentRoomId}/meta/status`).set('rolling');
       }
     }
 
     function computeAndWriteAssignments() {
       const participants = Object.entries(currentRoom.participants).map(([id, p]) => ({
-        id, name: p.name, roll: p.roll, rolledAt: p.rolledAt || 0
+        id, name: p.name, roll: p.roll
       }));
 
-      // Sort by roll descending, then by rolledAt ascending (earlier roller wins ties)
-      participants.sort((a, b) => {
-        if (b.roll !== a.roll) return b.roll - a.roll;
-        return a.rolledAt - b.rolledAt;
-      });
+      // Sort by roll descending (all unique, no ties possible)
+      participants.sort((a, b) => b.roll - a.roll);
 
       const topics = currentRoom.topics;
       const topicIds = Object.keys(topics).map(Number).sort((a, b) => a - b);
@@ -1071,12 +1104,10 @@
       participants.forEach(p => { assignments[p.id] = []; });
 
       if (T <= P) {
-        // Each of the top T players gets one topic
         for (let i = 0; i < T; i++) {
           assignments[participants[i].id].push(topicIds[i]);
         }
       } else {
-        // Distribute T topics across P players
         const base = Math.floor(T / P);
         const extra = T % P;
         let topicIdx = 0;
