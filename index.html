@@ -1058,7 +1058,9 @@
     function checkAllRolled() {
       if (!currentRoom?.participants || !currentRoom?.meta) return;
       const participants = Object.entries(currentRoom.participants);
-      const allRolled = participants.length > 0 && participants.every(([, p]) => typeof p.roll === 'number');
+      const maxPlayers = currentRoom.meta.maxPlayers || 5;
+      const allJoined = participants.length >= maxPlayers;
+      const allRolled = allJoined && participants.every(([, p]) => typeof p.roll === 'number');
 
       if (allRolled && !currentRoom.assignments) {
         // Compute and write assignments
