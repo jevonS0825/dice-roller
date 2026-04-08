@@ -260,73 +260,63 @@
       padding: 20px 0;
     }
 
-    /* Slot machine */
-    .slot-machine {
-      display: flex;
-      justify-content: center;
-      gap: 6px;
-      margin-bottom: 24px;
-      height: 80px;
+    /* 3D Dice */
+    .dice-scene {
+      width: 100px;
+      height: 100px;
+      margin: 0 auto 24px;
+      perspective: 400px;
     }
-    .slot-column {
-      width: 52px;
-      height: 80px;
-      background: linear-gradient(180deg, #1E1B4B 0%, #312E81 100%);
-      border-radius: 10px;
-      overflow: hidden;
+    .dice-cube {
+      width: 100px;
+      height: 100px;
       position: relative;
-      box-shadow: inset 0 2px 6px rgba(0,0,0,0.3);
+      transform-style: preserve-3d;
+      transform: rotateX(-20deg) rotateY(20deg);
+      transition: transform 1.5s cubic-bezier(0.2, 0.8, 0.3, 1);
     }
-    .slot-column::before, .slot-column::after {
-      content: '';
+    .dice-cube.rolling {
+      animation: dice-spin 1.5s cubic-bezier(0.2, 0.8, 0.3, 1);
+    }
+    .dice-face {
       position: absolute;
-      left: 0; right: 0;
-      height: 20px;
-      z-index: 2;
-      pointer-events: none;
+      width: 100px;
+      height: 100px;
+      background: white;
+      border: 3px solid #E5E7EB;
+      border-radius: 14px;
+      display: grid;
+      padding: 16px;
+      box-shadow: inset 0 0 12px rgba(0,0,0,0.04);
     }
-    .slot-column::before {
-      top: 0;
-      background: linear-gradient(180deg, rgba(30,27,75,1), rgba(30,27,75,0));
+    .dice-face .dot {
+      width: 16px;
+      height: 16px;
+      background: #1E1B4B;
+      border-radius: 50%;
+      align-self: center;
+      justify-self: center;
     }
-    .slot-column::after {
-      bottom: 0;
-      background: linear-gradient(0deg, rgba(30,27,75,1), rgba(30,27,75,0));
+    /* Face positions */
+    .face-1 { transform: rotateY(0deg) translateZ(50px); grid-template: 1fr / 1fr; }
+    .face-2 { transform: rotateY(180deg) translateZ(50px); grid-template: 1fr 1fr / 1fr; }
+    .face-2 .dot:first-child { justify-self: end; align-self: start; }
+    .face-2 .dot:last-child { justify-self: start; align-self: end; }
+    .face-3 { transform: rotateY(90deg) translateZ(50px); grid-template: 1fr 1fr 1fr / 1fr; }
+    .face-3 .dot:first-child { justify-self: end; align-self: start; }
+    .face-3 .dot:last-child { justify-self: start; align-self: end; }
+    .face-4 { transform: rotateY(-90deg) translateZ(50px); grid-template: 1fr 1fr / 1fr 1fr; }
+    .face-5 { transform: rotateX(90deg) translateZ(50px); grid-template: 1fr 1fr 1fr / 1fr 1fr; }
+    .face-5 .dot:nth-child(3) { grid-column: 1 / -1; }
+    .face-6 { transform: rotateX(-90deg) translateZ(50px); grid-template: 1fr 1fr 1fr / 1fr 1fr; }
+
+    @keyframes dice-spin {
+      0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+      20% { transform: rotateX(360deg) rotateY(180deg) rotateZ(90deg); }
+      40% { transform: rotateX(720deg) rotateY(360deg) rotateZ(180deg); }
+      60% { transform: rotateX(1080deg) rotateY(540deg) rotateZ(270deg); }
+      80% { transform: rotateX(1300deg) rotateY(680deg) rotateZ(340deg); }
     }
-    .slot-strip {
-      display: flex;
-      flex-direction: column;
-      transition: transform 1.5s cubic-bezier(0.15, 0.85, 0.25, 1);
-    }
-    .slot-strip.spinning {
-      transition: none;
-    }
-    .slot-num {
-      width: 52px;
-      height: 80px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 36px;
-      font-weight: 800;
-      color: white;
-      font-variant-numeric: tabular-nums;
-    }
-    .slot-highlight {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 48px;
-      height: 40px;
-      border: 2px solid var(--warning);
-      border-radius: 6px;
-      z-index: 3;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-    .slot-highlight.show { opacity: 1; }
 
     /* Roll button */
     .btn-roll {
@@ -604,18 +594,14 @@
 
       <!-- Dice area -->
       <div class="card dice-area" id="dice-card">
-        <div class="slot-machine" id="slot-machine">
-          <div class="slot-column">
-            <div class="slot-strip" id="slot-tens">
-              <div class="slot-num">0</div>
-            </div>
-            <div class="slot-highlight"></div>
-          </div>
-          <div class="slot-column">
-            <div class="slot-strip" id="slot-ones">
-              <div class="slot-num">0</div>
-            </div>
-            <div class="slot-highlight"></div>
+        <div class="dice-scene">
+          <div class="dice-cube" id="dice-cube">
+            <div class="dice-face face-1"><div class="dot"></div></div>
+            <div class="dice-face face-2"><div class="dot"></div><div class="dot"></div></div>
+            <div class="dice-face face-3"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+            <div class="dice-face face-4"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+            <div class="dice-face face-5"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+            <div class="dice-face face-6"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
           </div>
         </div>
         <button class="btn-roll" id="btn-roll" onclick="rollDice()">掷骰子</button>
@@ -988,12 +974,12 @@
       const btn = document.getElementById('btn-roll');
       btn.disabled = true;
 
-      // Generate result: 1-100
-      const result = Math.floor(Math.random() * 100) + 1;
+      // Generate result: 1-6
+      const result = Math.floor(Math.random() * 6) + 1;
       myRoll = result;
 
       // Start animation
-      animateSlots(result, () => {
+      animateDice(result, () => {
         // Write to Firebase
         const playerRef = db.ref(`rooms/${currentRoomId}/participants/${playerId}`);
         playerRef.update({
@@ -1002,7 +988,7 @@
         }).then(() => {
           isRolling = false;
           document.getElementById('roll-message').textContent = `你掷出了 ${result} 点！`;
-          showHighlight();
+          // dice landed
         }).catch(() => {
           isRolling = false;
           showToast('网络错误，请重试');
@@ -1012,46 +998,36 @@
       });
     }
 
-    function animateSlots(result, callback) {
-      const tens = Math.floor(result / 10);
-      const ones = result % 10;
-      // For display: "00" shows as "100" concept, but we show 01-99 as two digits, 100 special
-      const displayTens = result === 100 ? 10 : tens;
-      const displayOnes = result === 100 ? 0 : ones;
+    // Rotation map: which rotation shows which face on front
+    const DICE_ROTATIONS = {
+      1: 'rotateX(0deg) rotateY(0deg)',
+      2: 'rotateX(0deg) rotateY(180deg)',
+      3: 'rotateX(0deg) rotateY(-90deg)',
+      4: 'rotateX(0deg) rotateY(90deg)',
+      5: 'rotateX(-90deg) rotateY(0deg)',
+      6: 'rotateX(90deg) rotateY(0deg)'
+    };
 
-      animateSingleSlot('slot-tens', displayTens, 1.2, () => {});
-      animateSingleSlot('slot-ones', displayOnes, 1.5, callback);
-    }
+    function animateDice(result, callback) {
+      const cube = document.getElementById('dice-cube');
 
-    function animateSingleSlot(stripId, target, duration, callback) {
-      const strip = document.getElementById(stripId);
-      // Build numbers: cycle through 0-9 multiple times then land on target
-      const cycles = 3;
-      let nums = [];
-      for (let c = 0; c < cycles; c++) {
-        for (let i = 0; i <= 9; i++) nums.push(i);
-      }
-      nums.push(target > 9 ? 0 : target); // land on target (100 shows as "00" but we handle it)
+      // Reset
+      cube.classList.remove('rolling');
+      cube.style.transition = 'none';
+      cube.style.transform = 'rotateX(0deg) rotateY(0deg)';
+      cube.offsetHeight; // force reflow
 
-      strip.innerHTML = nums.map(n => `<div class="slot-num">${n}</div>`).join('');
+      // Spin animation
+      cube.classList.add('rolling');
 
-      // Reset position
-      strip.style.transition = 'none';
-      strip.style.transform = 'translateY(0)';
+      // After spin animation, land on the result face
+      setTimeout(() => {
+        cube.classList.remove('rolling');
+        cube.style.transition = 'transform 0.5s cubic-bezier(0.3, 0.9, 0.4, 1)';
+        cube.style.transform = DICE_ROTATIONS[result];
+      }, 1300);
 
-      // Force reflow
-      strip.offsetHeight;
-
-      // Animate
-      const finalOffset = -(nums.length - 1) * 80;
-      strip.style.transition = `transform ${duration}s cubic-bezier(0.15, 0.85, 0.25, 1)`;
-      strip.style.transform = `translateY(${finalOffset}px)`;
-
-      setTimeout(callback, duration * 1000);
-    }
-
-    function showHighlight() {
-      document.querySelectorAll('.slot-highlight').forEach(el => el.classList.add('show'));
+      setTimeout(callback, 1800);
     }
 
     // ==================== CHECK ALL ROLLED ====================
