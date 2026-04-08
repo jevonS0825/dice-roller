@@ -926,7 +926,7 @@
         const color = getAvatarColor(p.name);
         const initial = p.name.charAt(0);
         const isMe = pid === playerId;
-        const rollDisplay = p.roll !== null
+        const rollDisplay = typeof p.roll === 'number'
           ? `<span class="participant-roll roll-done">${p.roll}</span>`
           : `<span class="participant-roll roll-pending">未掷</span>`;
 
@@ -953,7 +953,7 @@
       const maxPlayers = currentRoom?.meta?.maxPlayers || 5;
       const entries = Object.values(participants);
       const joined = entries.length;
-      const rolled = entries.filter(p => p.roll !== null).length;
+      const rolled = entries.filter(p => typeof p.roll === 'number').length;
 
       document.getElementById('progress-text').textContent = `${joined} / ${maxPlayers} 人已加入`;
       document.getElementById('progress-fill').style.width = `${(joined / maxPlayers) * 100}%`;
@@ -996,13 +996,9 @@
       animateSlots(result, () => {
         // Write to Firebase
         const playerRef = db.ref(`rooms/${currentRoomId}/participants/${playerId}`);
-        playerRef.transaction((current) => {
-          if (current && (current.roll === null || current.roll === undefined)) {
-            current.roll = result;
-            current.rolledAt = firebase.database.ServerValue.TIMESTAMP;
-            return current;
-          }
-          return; // abort if already rolled
+        playerRef.update({
+          roll: result,
+          rolledAt: Date.now()
         }).then(() => {
           isRolling = false;
           document.getElementById('roll-message').textContent = `你掷出了 ${result} 点！`;
@@ -1062,7 +1058,7 @@
     function checkAllRolled() {
       if (!currentRoom?.participants || !currentRoom?.meta) return;
       const participants = Object.entries(currentRoom.participants);
-      const allRolled = participants.length > 0 && participants.every(([, p]) => p.roll !== null);
+      const allRolled = participants.length > 0 && participants.every(([, p]) => typeof p.roll === 'number');
 
       if (allRolled && !currentRoom.assignments) {
         // Compute and write assignments
@@ -1072,7 +1068,7 @@
       // Update status
       if (allRolled && currentRoom.meta.status !== 'done') {
         db.ref(`rooms/${currentRoomId}/meta/status`).set('done');
-      } else if (participants.some(([, p]) => p.roll !== null) && currentRoom.meta.status === 'waiting') {
+      } else if (participants.some(([, p]) => typeof p.roll === 'number') && currentRoom.meta.status === 'waiting') {
         db.ref(`rooms/${currentRoomId}/meta/status`).set('rolling');
       }
     }
