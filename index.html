@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>骰子分题器</title>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <!-- QRCode.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --primary-light: #818CF8;
+      --primary-dark: #3730A3;
+      --bg: #F9FAFB;
+      --card: #FFFFFF;
+      --text: #111827;
+      --text-secondary: #6B7280;
+      --border: #E5E7EB;
+      --success: #10B981;
+      --danger: #EF4444;
+      --warning: #F59E0B;
+      --radius: 12px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .container {
+      max-width: 420px;
+      margin: 0 auto;
+      padding: 20px 16px;
+    }
+
+    .hidden { display: none !important; }
+
+    /* Header */
+    .app-header {
+      text-align: center;
+      padding: 24px 0 16px;
+    }
+    .app-header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--primary), var(--primary-light));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .app-header p {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-top: 4px;
+    }
+
+    /* Buttons */
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 16px;
+      font-weight: 600;
+      transition: all 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      padding: 14px 24px;
+      width: 100%;
+      min-height: 48px;
+    }
+    .btn-primary:active { background: var(--primary-dark); transform: scale(0.98); }
+    .btn-primary:disabled { background: #9CA3AF; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: white;
+      color: var(--primary);
+      border: 2px solid var(--primary);
+      padding: 12px 24px;
+      width: 100%;
+      min-height: 48px;
+    }
+    .btn-secondary:active { background: #EEF2FF; }
+
+    .btn-small {
+      background: var(--primary);
+      color: white;
+      padding: 8px 16px;
+      font-size: 14px;
+      min-height: 36px;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      padding: 8px;
+      font-size: 14px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      margin-bottom: 16px;
+    }
+
+    /* Inputs */
+    input, textarea {
+      width: 100%;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 16px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+    }
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    textarea { resize: vertical; min-height: 120px; line-height: 1.6; }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    .form-group { margin-bottom: 16px; }
+    .form-hint { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+
+    /* Separator */
+    .divider {
+      display: flex;
+      align-items: center;
+      margin: 20px 0;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      border-bottom: 1px solid var(--border);
+    }
+    .divider span { padding: 0 12px; }
+
+    /* Room header */
+    .room-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .room-code {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--primary);
+    }
+    .room-status {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+    .status-waiting { background: #FEF3C7; color: #92400E; }
+    .status-rolling { background: #DBEAFE; color: #1E40AF; }
+    .status-done { background: #D1FAE5; color: #065F46; }
+
+    /* Share section */
+    .share-section { text-align: center; }
+    .share-section .qr-wrapper {
+      display: inline-block;
+      padding: 12px;
+      background: white;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+    .share-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+    .link-display {
+      font-size: 12px;
+      color: var(--text-secondary);
+      word-break: break-all;
+      margin-top: 8px;
+      padding: 8px;
+      background: #F3F4F6;
+      border-radius: 6px;
+    }
+
+    /* Participant list */
+    .participant-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .participant-item:last-child { border-bottom: none; }
+    .participant-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .participant-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      color: white;
+    }
+    .participant-name { font-weight: 500; font-size: 15px; }
+    .participant-name .you-tag {
+      font-size: 11px;
+      color: var(--primary);
+      margin-left: 4px;
+    }
+    .participant-roll {
+      font-weight: 700;
+      font-size: 18px;
+      min-width: 40px;
+      text-align: right;
+    }
+    .roll-pending { color: var(--text-secondary); font-size: 14px; font-weight: 400; }
+    .roll-done { color: var(--primary); }
+
+    .waiting-slots {
+      color: var(--text-secondary);
+      text-align: center;
+      padding: 12px;
+      font-size: 14px;
+    }
+
+    /* Dice area */
+    .dice-area {
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    /* Slot machine */
+    .slot-machine {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 24px;
+      height: 80px;
+    }
+    .slot-column {
+      width: 52px;
+      height: 80px;
+      background: linear-gradient(180deg, #1E1B4B 0%, #312E81 100%);
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.3);
+    }
+    .slot-column::before, .slot-column::after {
+      content: '';
+      position: absolute;
+      left: 0; right: 0;
+      height: 20px;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .slot-column::before {
+      top: 0;
+      background: linear-gradient(180deg, rgba(30,27,75,1), rgba(30,27,75,0));
+    }
+    .slot-column::after {
+      bottom: 0;
+      background: linear-gradient(0deg, rgba(30,27,75,1), rgba(30,27,75,0));
+    }
+    .slot-strip {
+      display: flex;
+      flex-direction: column;
+      transition: transform 1.5s cubic-bezier(0.15, 0.85, 0.25, 1);
+    }
+    .slot-strip.spinning {
+      transition: none;
+    }
+    .slot-num {
+      width: 52px;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      font-weight: 800;
+      color: white;
+      font-variant-numeric: tabular-nums;
+    }
+    .slot-highlight {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 48px;
+      height: 40px;
+      border: 2px solid var(--warning);
+      border-radius: 6px;
+      z-index: 3;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .slot-highlight.show { opacity: 1; }
+
+    /* Roll button */
+    .btn-roll {
+      background: linear-gradient(135deg, #F59E0B, #D97706);
+      color: white;
+      padding: 16px 48px;
+      font-size: 20px;
+      font-weight: 700;
+      border-radius: 50px;
+      box-shadow: 0 4px 14px rgba(217, 119, 6, 0.4);
+      min-height: 56px;
+      display: inline-block;
+    }
+    .btn-roll:active:not(:disabled) { transform: scale(0.95); }
+    .btn-roll:disabled {
+      background: #9CA3AF;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    /* Results */
+    .result-item {
+      background: white;
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      border-left: 4px solid var(--primary);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .result-rank {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-right: 12px;
+    }
+    .result-rank.gold { background: #F59E0B; }
+    .result-rank.silver { background: #9CA3AF; }
+    .result-rank.bronze { background: #B45309; }
+    .result-left {
+      display: flex;
+      align-items: center;
+      flex: 1;
+    }
+    .result-info h4 { font-size: 15px; font-weight: 600; }
+    .result-info p { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+    .result-topic {
+      text-align: right;
+      flex-shrink: 0;
+      max-width: 55%;
+    }
+    .result-topic .topic-tag {
+      display: inline-block;
+      background: #EEF2FF;
+      color: var(--primary-dark);
+      font-size: 13px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin: 2px 0;
+      font-weight: 500;
+    }
+    .result-topic .no-topic {
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-style: italic;
+    }
+
+    .celebration {
+      text-align: center;
+      padding: 16px;
+      font-size: 16px;
+      color: var(--success);
+      font-weight: 600;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #1F2937;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      opacity: 0;
+      transition: all 0.3s;
+      z-index: 100;
+      white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* Modal overlay */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      padding: 20px;
+    }
+    .modal-content {
+      background: white;
+      border-radius: var(--radius);
+      padding: 24px;
+      width: 100%;
+      max-width: 340px;
+    }
+    .modal-content h3 { margin-bottom: 16px; font-size: 18px; }
+
+    /* Back button */
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 14px;
+      color: var(--text-secondary);
+      background: none;
+      border: none;
+      padding: 8px 0;
+      margin-bottom: 8px;
+    }
+
+    /* Progress bar */
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 12px 0;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--primary);
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    /* Confetti */
+    @keyframes confetti-fall {
+      0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+    .confetti-piece {
+      position: fixed;
+      width: 10px;
+      height: 10px;
+      top: -10px;
+      z-index: 200;
+      pointer-events: none;
+      animation: confetti-fall 3s ease-in forwards;
+    }
+
+    /* Responsive tweaks */
+    @media (max-width: 360px) {
+      .container { padding: 16px 12px; }
+      .slot-column { width: 44px; }
+      .slot-num { width: 44px; font-size: 30px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- ========== Screen: Home ========== -->
+    <div id="screen-home">
+      <div class="app-header">
+        <h1>骰子分题器</h1>
+        <p>掷骰子，分题目，不冲突</p>
+      </div>
+
+      <div class="card">
+        <button class="btn-primary" onclick="showScreen('create')">创建房间</button>
+
+        <div class="divider"><span>或者</span></div>
+
+        <div class="form-group">
+          <label for="input-room-code">输入房间号加入</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="input-room-code" placeholder="例如 ABC123" maxlength="6"
+                   style="text-transform:uppercase; letter-spacing:2px; font-weight:700; flex:1;"
+                   oninput="this.value = this.value.toUpperCase()">
+            <button class="btn-small" onclick="joinByCode()" style="flex-shrink:0;">加入</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== Screen: Create Room ========== -->
+    <div id="screen-create" class="hidden">
+      <button class="back-btn" onclick="showScreen('home')">← 返回</button>
+      <div class="app-header" style="padding-top:8px;">
+        <h1>创建房间</h1>
+      </div>
+
+      <div class="card">
+        <div class="form-group">
+          <label for="input-room-name">房间名称（可选）</label>
+          <input type="text" id="input-room-name" placeholder="例如：第三周分题" maxlength="30">
+        </div>
+
+        <div class="form-group">
+          <label for="input-topics">题目列表</label>
+          <textarea id="input-topics" placeholder="每行输入一个题目，例如：&#10;Question 1: Neural Networks&#10;Question 2: Decision Trees&#10;Question 3: NLP Basics&#10;Question 4: Computer Vision&#10;Question 5: Reinforcement Learning"></textarea>
+          <div class="form-hint">每行一个题目，会自动识别行数</div>
+        </div>
+
+        <div class="form-group">
+          <label for="input-max-players">参与人数</label>
+          <input type="number" id="input-max-players" value="5" min="2" max="20" style="width:100px;">
+        </div>
+
+        <button class="btn-primary" onclick="createRoom()" id="btn-create-confirm">确认创建</button>
+      </div>
+    </div>
+
+    <!-- ========== Screen: Room ========== -->
+    <div id="screen-room" class="hidden">
+      <div class="room-header">
+        <div>
+          <div style="font-size:13px; color:var(--text-secondary);">房间号</div>
+          <div class="room-code" id="room-code-display"></div>
+        </div>
+        <span class="room-status" id="room-status-badge"></span>
+      </div>
+
+      <div id="room-name-display" style="font-size:16px; font-weight:600; margin-bottom:16px;"></div>
+
+      <!-- Share -->
+      <div class="card share-section" id="share-card">
+        <div class="qr-wrapper" id="qrcode"></div>
+        <div class="share-actions">
+          <button class="btn-small" onclick="copyLink()">复制链接</button>
+          <button class="btn-small" onclick="toggleShare()" style="background:var(--text-secondary);">收起</button>
+        </div>
+        <div class="link-display" id="room-link-display"></div>
+      </div>
+
+      <!-- Progress -->
+      <div class="card" id="progress-card">
+        <div style="display:flex; justify-content:space-between; font-size:14px;">
+          <span>参与进度</span>
+          <span id="progress-text">0 / 5 人已加入</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:14px; margin-top:4px;">
+          <span>掷骰进度</span>
+          <span id="roll-progress-text">0 / 5 人已掷</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="roll-progress-fill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Participants -->
+      <div class="card">
+        <h3 style="font-size:16px; margin-bottom:12px;">参与者</h3>
+        <div id="participant-list"></div>
+      </div>
+
+      <!-- Dice area -->
+      <div class="card dice-area" id="dice-card">
+        <div class="slot-machine" id="slot-machine">
+          <div class="slot-column">
+            <div class="slot-strip" id="slot-tens">
+              <div class="slot-num">0</div>
+            </div>
+            <div class="slot-highlight"></div>
+          </div>
+          <div class="slot-column">
+            <div class="slot-strip" id="slot-ones">
+              <div class="slot-num">0</div>
+            </div>
+            <div class="slot-highlight"></div>
+          </div>
+        </div>
+        <button class="btn-roll" id="btn-roll" onclick="rollDice()">掷骰子</button>
+        <div id="roll-message" style="margin-top:12px; font-size:14px; color:var(--text-secondary);"></div>
+      </div>
+
+      <!-- Results -->
+      <div id="results-section" class="hidden">
+        <div class="card">
+          <h3 style="font-size:18px; margin-bottom:16px; text-align:center;">分题结果</h3>
+          <div id="results-list"></div>
+        </div>
+        <div class="celebration" id="celebration-text"></div>
+        <button class="btn-secondary" onclick="showScreen('home')" style="margin-top:8px;">返回首页</button>
+      </div>
+    </div>
+
+    <!-- ========== Nickname Modal ========== -->
+    <div class="modal-overlay hidden" id="nickname-modal">
+      <div class="modal-content">
+        <h3>输入你的昵称</h3>
+        <div class="form-group">
+          <input type="text" id="input-nickname" placeholder="你的昵称" maxlength="20">
+        </div>
+        <button class="btn-primary" onclick="confirmNickname()">确认加入</button>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <script>
+    // ==================== CONFIG ====================
+    // TODO: 替换为你的 Firebase 配置
+    const firebaseConfig = {
+      apiKey: "AIzaSyCHpr0TVRbpk39GaRbWol7C6IM1cPgZ5EU",
+      authDomain: "dice-roller-e3d7e.firebaseapp.com",
+      databaseURL: "https://dice-roller-e3d7e-default-rtdb.firebaseio.com",
+      projectId: "dice-roller-e3d7e",
+      storageBucket: "dice-roller-e3d7e.firebasestorage.app",
+      messagingSenderId: "848421739392",
+      appId: "1:848421739392:web:16f3634617f0cc847d7f65",
+      measurementId: "G-GBQW3Z9EXT"
+    };
+
+    // ==================== INIT ====================
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // ==================== STATE ====================
+    let currentRoomId = null;
+    let currentRoom = null;
+    let playerId = getPlayerId();
+    let myRoll = null;
+    let isRolling = false;
+    let listeners = [];
+
+    // ==================== UTILS ====================
+    function getPlayerId() {
+      let id = localStorage.getItem('dice_player_id');
+      if (!id) {
+        id = 'p_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        localStorage.setItem('dice_player_id', id);
+      }
+      return id;
+    }
+
+    function generateRoomId() {
+      const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+      let result = '';
+      const array = new Uint8Array(6);
+      crypto.getRandomValues(array);
+      for (let i = 0; i < 6; i++) {
+        result += chars[array[i] % chars.length];
+      }
+      return result;
+    }
+
+    const AVATAR_COLORS = ['#4F46E5','#0891B2','#059669','#D97706','#DC2626','#7C3AED','#DB2777','#2563EB','#16A34A','#EA580C'];
+
+    function getAvatarColor(name) {
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash) + name.charCodeAt(i);
+      return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2000);
+    }
+
+    // ==================== SCREENS ====================
+    function showScreen(name) {
+      document.getElementById('screen-home').classList.add('hidden');
+      document.getElementById('screen-create').classList.add('hidden');
+      document.getElementById('screen-room').classList.add('hidden');
+      document.getElementById('screen-' + name).classList.remove('hidden');
+    }
+
+    // ==================== ROOM CREATION ====================
+    async function createRoom() {
+      const topicsText = document.getElementById('input-topics').value.trim();
+      if (!topicsText) { showToast('请输入题目列表'); return; }
+
+      const topicsArr = topicsText.split('\n').map(t => t.trim()).filter(t => t);
+      if (topicsArr.length < 1) { showToast('至少需要1个题目'); return; }
+
+      const maxPlayers = parseInt(document.getElementById('input-max-players').value) || 5;
+      const roomName = document.getElementById('input-room-name').value.trim() || '骰子分题';
+
+      const btn = document.getElementById('btn-create-confirm');
+      btn.disabled = true;
+      btn.textContent = '创建中...';
+
+      try {
+        let roomId = generateRoomId();
+        // Check for collision
+        const existing = await db.ref('rooms/' + roomId).once('value');
+        if (existing.exists()) roomId = generateRoomId();
+
+        const topics = {};
+        topicsArr.forEach((t, i) => topics[i] = t);
+
+        await db.ref('rooms/' + roomId).set({
+          meta: {
+            name: roomName,
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            status: 'waiting',
+            maxPlayers: maxPlayers
+          },
+          topics: topics
+        });
+
+        // Clean up old rooms
+        cleanupOldRooms();
+
+        // Enter room
+        enterRoom(roomId);
+      } catch (err) {
+        showToast('创建失败: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = '确认创建';
+      }
+    }
+
+    function joinByCode() {
+      const code = document.getElementById('input-room-code').value.trim().toUpperCase();
+      if (!code || code.length < 4) { showToast('请输入有效的房间号'); return; }
+      enterRoom(code);
+    }
+
+    // ==================== ENTER ROOM ====================
+    async function enterRoom(roomId) {
+      // Check room exists
+      const snapshot = await db.ref('rooms/' + roomId + '/meta').once('value');
+      if (!snapshot.exists()) {
+        showToast('房间不存在');
+        return;
+      }
+
+      currentRoomId = roomId;
+      // Update URL
+      const url = new URL(window.location);
+      url.searchParams.set('room', roomId);
+      window.history.replaceState({}, '', url);
+
+      showScreen('room');
+      setupRoomUI(roomId);
+
+      // Check if we already joined
+      const meSnap = await db.ref('rooms/' + roomId + '/participants/' + playerId).once('value');
+      if (meSnap.exists()) {
+        myRoll = meSnap.val().roll;
+        startListening(roomId);
+      } else {
+        // Show nickname modal
+        document.getElementById('nickname-modal').classList.remove('hidden');
+        document.getElementById('input-nickname').focus();
+      }
+    }
+
+    function setupRoomUI(roomId) {
+      document.getElementById('room-code-display').textContent = roomId;
+      const roomUrl = window.location.origin + window.location.pathname + '?room=' + roomId;
+      document.getElementById('room-link-display').textContent = roomUrl;
+
+      // QR code
+      const qrEl = document.getElementById('qrcode');
+      qrEl.innerHTML = '';
+      try {
+        new QRCode(qrEl, {
+          text: roomUrl,
+          width: 180,
+          height: 180,
+          colorDark: '#1F2937',
+          colorLight: '#FFFFFF',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      } catch(e) {
+        qrEl.innerHTML = '<p style="color:#999;font-size:12px;">QR码生成失败</p>';
+      }
+    }
+
+    async function confirmNickname() {
+      const name = document.getElementById('input-nickname').value.trim();
+      if (!name) { showToast('请输入昵称'); return; }
+
+      // Check room capacity
+      const participantsSnap = await db.ref('rooms/' + currentRoomId + '/participants').once('value');
+      const metaSnap = await db.ref('rooms/' + currentRoomId + '/meta').once('value');
+      const meta = metaSnap.val();
+      const current = participantsSnap.val() ? Object.keys(participantsSnap.val()).length : 0;
+
+      if (current >= meta.maxPlayers) {
+        showToast('房间已满');
+        return;
+      }
+
+      await db.ref('rooms/' + currentRoomId + '/participants/' + playerId).set({
+        name: name,
+        joinedAt: firebase.database.ServerValue.TIMESTAMP,
+        roll: null,
+        rolledAt: null
+      });
+
+      // Save nickname for next time
+      localStorage.setItem('dice_nickname', name);
+
+      document.getElementById('nickname-modal').classList.add('hidden');
+      startListening(currentRoomId);
+    }
+
+    // ==================== REAL-TIME LISTENERS ====================
+    function startListening(roomId) {
+      // Clean old listeners
+      listeners.forEach(l => l.off());
+      listeners = [];
+
+      const roomRef = db.ref('rooms/' + roomId);
+
+      // Meta
+      const metaRef = roomRef.child('meta');
+      metaRef.on('value', (snap) => {
+        if (!snap.exists()) return;
+        const meta = snap.val();
+        currentRoom = currentRoom || {};
+        currentRoom.meta = meta;
+        document.getElementById('room-name-display').textContent = meta.name;
+        updateStatusBadge(meta.status);
+      });
+      listeners.push(metaRef);
+
+      // Topics
+      const topicsRef = roomRef.child('topics');
+      topicsRef.on('value', (snap) => {
+        currentRoom = currentRoom || {};
+        currentRoom.topics = snap.val() || {};
+      });
+      listeners.push(topicsRef);
+
+      // Participants
+      const partRef = roomRef.child('participants');
+      partRef.on('value', (snap) => {
+        currentRoom = currentRoom || {};
+        currentRoom.participants = snap.val() || {};
+        renderParticipants();
+        updateProgress();
+        checkAllRolled();
+      });
+      listeners.push(partRef);
+
+      // Assignments
+      const assignRef = roomRef.child('assignments');
+      assignRef.on('value', (snap) => {
+        if (snap.exists()) {
+          currentRoom = currentRoom || {};
+          currentRoom.assignments = snap.val();
+          renderResults();
+        }
+      });
+      listeners.push(assignRef);
+    }
+
+    function updateStatusBadge(status) {
+      const badge = document.getElementById('room-status-badge');
+      const map = {
+        waiting: ['等待加入', 'status-waiting'],
+        rolling: ['掷骰中', 'status-rolling'],
+        done: ['已完成', 'status-done']
+      };
+      const [text, cls] = map[status] || ['未知', ''];
+      badge.textContent = text;
+      badge.className = 'room-status ' + cls;
+    }
+
+    // ==================== RENDER PARTICIPANTS ====================
+    function renderParticipants() {
+      const list = document.getElementById('participant-list');
+      const participants = currentRoom?.participants || {};
+      const maxPlayers = currentRoom?.meta?.maxPlayers || 5;
+      const entries = Object.entries(participants);
+
+      let html = '';
+      entries.forEach(([pid, p]) => {
+        const color = getAvatarColor(p.name);
+        const initial = p.name.charAt(0);
+        const isMe = pid === playerId;
+        const rollDisplay = p.roll !== null
+          ? `<span class="participant-roll roll-done">${p.roll}</span>`
+          : `<span class="participant-roll roll-pending">未掷</span>`;
+
+        html += `
+          <div class="participant-item">
+            <div class="participant-info">
+              <div class="participant-avatar" style="background:${color}">${initial}</div>
+              <span class="participant-name">${escapeHtml(p.name)}${isMe ? '<span class="you-tag">(我)</span>' : ''}</span>
+            </div>
+            ${rollDisplay}
+          </div>`;
+      });
+
+      const remaining = maxPlayers - entries.length;
+      if (remaining > 0) {
+        html += `<div class="waiting-slots">还有 ${remaining} 个位置等待加入...</div>`;
+      }
+
+      list.innerHTML = html;
+    }
+
+    function updateProgress() {
+      const participants = currentRoom?.participants || {};
+      const maxPlayers = currentRoom?.meta?.maxPlayers || 5;
+      const entries = Object.values(participants);
+      const joined = entries.length;
+      const rolled = entries.filter(p => p.roll !== null).length;
+
+      document.getElementById('progress-text').textContent = `${joined} / ${maxPlayers} 人已加入`;
+      document.getElementById('progress-fill').style.width = `${(joined / maxPlayers) * 100}%`;
+
+      document.getElementById('roll-progress-text').textContent = `${rolled} / ${joined} 人已掷`;
+      document.getElementById('roll-progress-fill').style.width = joined > 0 ? `${(rolled / joined) * 100}%` : '0%';
+
+      // Update roll button state
+      const btn = document.getElementById('btn-roll');
+      const msg = document.getElementById('roll-message');
+      const meInRoom = participants[playerId];
+
+      if (!meInRoom) {
+        btn.disabled = true;
+        msg.textContent = '你还未加入房间';
+      } else if (myRoll !== null) {
+        btn.disabled = true;
+        msg.textContent = `你掷出了 ${myRoll} 点`;
+      } else if (isRolling) {
+        btn.disabled = true;
+      } else {
+        btn.disabled = false;
+        msg.textContent = '点击掷骰子！';
+      }
+    }
+
+    // ==================== DICE ROLLING ====================
+    function rollDice() {
+      if (isRolling || myRoll !== null) return;
+      isRolling = true;
+
+      const btn = document.getElementById('btn-roll');
+      btn.disabled = true;
+
+      // Generate result: 1-100
+      const result = Math.floor(Math.random() * 100) + 1;
+      myRoll = result;
+
+      // Start animation
+      animateSlots(result, () => {
+        // Write to Firebase
+        const playerRef = db.ref(`rooms/${currentRoomId}/participants/${playerId}`);
+        playerRef.transaction((current) => {
+          if (current && (current.roll === null || current.roll === undefined)) {
+            current.roll = result;
+            current.rolledAt = firebase.database.ServerValue.TIMESTAMP;
+            return current;
+          }
+          return; // abort if already rolled
+        }).then(() => {
+          isRolling = false;
+          document.getElementById('roll-message').textContent = `你掷出了 ${result} 点！`;
+          showHighlight();
+        }).catch(() => {
+          isRolling = false;
+          showToast('网络错误，请重试');
+          myRoll = null;
+          btn.disabled = false;
+        });
+      });
+    }
+
+    function animateSlots(result, callback) {
+      const tens = Math.floor(result / 10);
+      const ones = result % 10;
+      // For display: "00" shows as "100" concept, but we show 01-99 as two digits, 100 special
+      const displayTens = result === 100 ? 10 : tens;
+      const displayOnes = result === 100 ? 0 : ones;
+
+      animateSingleSlot('slot-tens', displayTens, 1.2, () => {});
+      animateSingleSlot('slot-ones', displayOnes, 1.5, callback);
+    }
+
+    function animateSingleSlot(stripId, target, duration, callback) {
+      const strip = document.getElementById(stripId);
+      // Build numbers: cycle through 0-9 multiple times then land on target
+      const cycles = 3;
+      let nums = [];
+      for (let c = 0; c < cycles; c++) {
+        for (let i = 0; i <= 9; i++) nums.push(i);
+      }
+      nums.push(target > 9 ? 0 : target); // land on target (100 shows as "00" but we handle it)
+
+      strip.innerHTML = nums.map(n => `<div class="slot-num">${n}</div>`).join('');
+
+      // Reset position
+      strip.style.transition = 'none';
+      strip.style.transform = 'translateY(0)';
+
+      // Force reflow
+      strip.offsetHeight;
+
+      // Animate
+      const finalOffset = -(nums.length - 1) * 80;
+      strip.style.transition = `transform ${duration}s cubic-bezier(0.15, 0.85, 0.25, 1)`;
+      strip.style.transform = `translateY(${finalOffset}px)`;
+
+      setTimeout(callback, duration * 1000);
+    }
+
+    function showHighlight() {
+      document.querySelectorAll('.slot-highlight').forEach(el => el.classList.add('show'));
+    }
+
+    // ==================== CHECK ALL ROLLED ====================
+    function checkAllRolled() {
+      if (!currentRoom?.participants || !currentRoom?.meta) return;
+      const participants = Object.entries(currentRoom.participants);
+      const allRolled = participants.length > 0 && participants.every(([, p]) => p.roll !== null);
+
+      if (allRolled && !currentRoom.assignments) {
+        // Compute and write assignments
+        computeAndWriteAssignments();
+      }
+
+      // Update status
+      if (allRolled && currentRoom.meta.status !== 'done') {
+        db.ref(`rooms/${currentRoomId}/meta/status`).set('done');
+      } else if (participants.some(([, p]) => p.roll !== null) && currentRoom.meta.status === 'waiting') {
+        db.ref(`rooms/${currentRoomId}/meta/status`).set('rolling');
+      }
+    }
+
+    function computeAndWriteAssignments() {
+      const participants = Object.entries(currentRoom.participants).map(([id, p]) => ({
+        id, name: p.name, roll: p.roll, rolledAt: p.rolledAt || 0
+      }));
+
+      // Sort by roll descending, then by rolledAt ascending (earlier roller wins ties)
+      participants.sort((a, b) => {
+        if (b.roll !== a.roll) return b.roll - a.roll;
+        return a.rolledAt - b.rolledAt;
+      });
+
+      const topics = currentRoom.topics;
+      const topicIds = Object.keys(topics).map(Number).sort((a, b) => a - b);
+      const T = topicIds.length;
+      const P = participants.length;
+
+      const assignments = {};
+      participants.forEach(p => { assignments[p.id] = []; });
+
+      if (T <= P) {
+        // Each of the top T players gets one topic
+        for (let i = 0; i < T; i++) {
+          assignments[participants[i].id].push(topicIds[i]);
+        }
+      } else {
+        // Distribute T topics across P players
+        const base = Math.floor(T / P);
+        const extra = T % P;
+        let topicIdx = 0;
+        for (let i = 0; i < P; i++) {
+          const count = base + (i < extra ? 1 : 0);
+          for (let j = 0; j < count; j++) {
+            assignments[participants[i].id].push(topicIds[topicIdx++]);
+          }
+        }
+      }
+
+      // Write to Firebase (only once)
+      db.ref(`rooms/${currentRoomId}/assignments`).transaction((current) => {
+        if (current === null) return assignments;
+        return; // already written
+      });
+    }
+
+    // ==================== RENDER RESULTS ====================
+    function renderResults() {
+      if (!currentRoom?.assignments || !currentRoom?.participants || !currentRoom?.topics) return;
+
+      document.getElementById('dice-card').classList.add('hidden');
+      document.getElementById('share-card').classList.add('hidden');
+      document.getElementById('results-section').classList.remove('hidden');
+
+      const participants = Object.entries(currentRoom.participants).map(([id, p]) => ({
+        id, name: p.name, roll: p.roll, rolledAt: p.rolledAt || 0
+      }));
+
+      // Sort same way as assignment
+      participants.sort((a, b) => {
+        if (b.roll !== a.roll) return b.roll - a.roll;
+        return a.rolledAt - b.rolledAt;
+      });
+
+      const list = document.getElementById('results-list');
+      let html = '';
+
+      participants.forEach((p, idx) => {
+        const rankCls = idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : '';
+        const topicIndices = currentRoom.assignments[p.id] || [];
+        const topicHtml = topicIndices.length > 0
+          ? topicIndices.map(ti => `<span class="topic-tag">${escapeHtml(currentRoom.topics[ti])}</span>`).join('<br>')
+          : '<span class="no-topic">本轮无题</span>';
+
+        html += `
+          <div class="result-item">
+            <div class="result-left">
+              <div class="result-rank ${rankCls}">${idx + 1}</div>
+              <div class="result-info">
+                <h4>${escapeHtml(p.name)}${p.id === playerId ? ' (我)' : ''}</h4>
+                <p>掷出 ${p.roll} 点</p>
+              </div>
+            </div>
+            <div class="result-topic">${topicHtml}</div>
+          </div>`;
+      });
+
+      list.innerHTML = html;
+      document.getElementById('celebration-text').textContent = '分题完成！截图分享到群里吧';
+
+      // Confetti
+      launchConfetti();
+    }
+
+    // ==================== CONFETTI ====================
+    function launchConfetti() {
+      const colors = ['#4F46E5', '#F59E0B', '#10B981', '#EF4444', '#EC4899', '#8B5CF6'];
+      for (let i = 0; i < 40; i++) {
+        const piece = document.createElement('div');
+        piece.className = 'confetti-piece';
+        piece.style.left = Math.random() * 100 + 'vw';
+        piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+        piece.style.animationDelay = Math.random() * 2 + 's';
+        piece.style.animationDuration = (2 + Math.random() * 2) + 's';
+        const size = 6 + Math.random() * 8;
+        piece.style.width = size + 'px';
+        piece.style.height = size + 'px';
+        piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+        document.body.appendChild(piece);
+        setTimeout(() => piece.remove(), 4000);
+      }
+    }
+
+    // ==================== SHARE ====================
+    let shareVisible = true;
+    function toggleShare() {
+      shareVisible = !shareVisible;
+      const card = document.getElementById('share-card');
+      const qr = card.querySelector('.qr-wrapper');
+      const link = card.querySelector('.link-display');
+      qr.classList.toggle('hidden', !shareVisible);
+      link.classList.toggle('hidden', !shareVisible);
+    }
+
+    function copyLink() {
+      const url = window.location.origin + window.location.pathname + '?room=' + currentRoomId;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => showToast('链接已复制'));
+      } else {
+        // Fallback
+        const input = document.createElement('input');
+        input.value = url;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        showToast('链接已复制');
+      }
+    }
+
+    // ==================== CLEANUP ====================
+    function cleanupOldRooms() {
+      const cutoff = Date.now() - (24 * 60 * 60 * 1000);
+      db.ref('rooms').orderByChild('meta/createdAt').endAt(cutoff).limitToFirst(10)
+        .once('value', (snapshot) => {
+          snapshot.forEach((child) => { child.ref.remove(); });
+        });
+    }
+
+    // ==================== HELPERS ====================
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.appendChild(document.createTextNode(str));
+      return div.innerHTML;
+    }
+
+    // ==================== INIT ON LOAD ====================
+    window.addEventListener('DOMContentLoaded', () => {
+      // Pre-fill nickname
+      const savedName = localStorage.getItem('dice_nickname');
+      if (savedName) document.getElementById('input-nickname').value = savedName;
+
+      // Check URL for room
+      const params = new URLSearchParams(window.location.search);
+      const roomId = params.get('room');
+      if (roomId) {
+        enterRoom(roomId.toUpperCase());
+      }
+    });
+  </script>
+</body>
+</html>
